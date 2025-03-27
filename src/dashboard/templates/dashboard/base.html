@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OwlX - Security Monitoring Platform{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --dark-bg: #0a0a1a;
+            --darker-bg: #060610;
+            --primary-color: #00ffff;  /* Cyber teal */
+            --secondary-color: #6a11cb;
+            --text-primary: #e0e0ff;
+            --text-secondary: #8a8ab3;
+            --border-color: rgba(255,255,255,0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            min-height: 100vh;
+            background-color: var(--darker-bg);
+            border-right: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+
+        .sidebar-brand {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+        }
+
+        .sidebar-brand h4 {
+            color: var(--primary-color);
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-brand h4 i {
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+
+        .nav-item {
+            margin-bottom: 5px;
+        }
+
+        .sidebar-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar-link i {
+            margin-right: 15px;
+            color: var(--text-secondary);
+            transition: color 0.3s ease;
+        }
+
+        .sidebar-link:hover, .sidebar-link.active {
+            background-color: rgba(0, 255, 255, 0.1);
+            color: var(--primary-color);
+        }
+
+        .sidebar-link:hover i, .sidebar-link.active i {
+            color: var(--primary-color);
+        }
+
+        .sidebar-link.active::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--primary-color);
+        }
+
+        .main-content {
+            background-color: var(--dark-bg);
+            padding: 30px;
+        }
+
+        .breadcrumb {
+            background-color: transparent;
+            padding: 10px 0;
+        }
+
+        .breadcrumb-item {
+            color: var(--text-secondary);
+        }
+
+        .breadcrumb-item a {
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .breadcrumb-item a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Cyberpunk-inspired glow and animation effects */
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px var(--primary-color); }
+            50% { box-shadow: 0 0 15px var(--primary-color); }
+            100% { box-shadow: 0 0 5px var(--primary-color); }
+        }
+
+        .sidebar-link.active {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .sidebar {
+                min-height: auto;
+            }
+            
+            .nav-item {
+                text-align: center;
+            }
+        }
+
+        /* Scrollbar styling for modern look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--darker-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="container-fluid p-0">
+        <div class="row g-0">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <div class="sidebar-brand">
+                    <h4>
+                        <i class="fas fa-shield-alt"></i>
+                        OwlX
+                    </h4>
+                    <p class="text-center text-muted small">Security Platform</p>
+                </div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a href="{% url 'dashboard:dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'dashboard:agent_list' %}" class="sidebar-link {% if request.resolver_match.url_name == 'agent_list' or request.resolver_match.url_name == 'agent_detail' %}active{% endif %}">
+                            <i class="fas fa-laptop"></i> Agents
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'dashboard:alerts' %}" class="sidebar-link {% if request.resolver_match.url_name == 'alerts' %}active{% endif %}">
+                            <i class="fas fa-bell"></i> Alerts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'dashboard:rules' %}" class="sidebar-link {% if request.resolver_match.url_name == 'rules' %}active{% endif %}">
+                            <i class="fas fa-check-circle"></i> Monitoring Rules
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/admin/" class="sidebar-link">
+                            <i class="fas fa-cog"></i> Admin
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="col-md-10">
+                <div class="main-content">
+                    <nav aria-label="breadcrumb" class="mb-4">
+                        <ol class="breadcrumb">
+                            {% block breadcrumb %}
+                            <li class="breadcrumb-item"><a href="{% url 'dashboard:dashboard' %}">Home</a></li>
+                            {% endblock %}
+                        </ol>
+                    </nav>
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Optional: Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

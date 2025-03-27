@@ -1,0 +1,170 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Agents - OwlX Agent Monitoring Platform{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'dashboard:dashboard' %}">Home</a></li>
+<li class="breadcrumb-item active" aria-current="page">Agents</li>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Agents</h1>
+        <div>
+            <button id="btn-refresh" class="btn btn-outline-secondary">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+    
+    <!-- Agents Table -->
+    <div class="card">
+        <div class="card-header bg-secondary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <span>Registered Agents</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>IP Address</th>
+                            <th>Version</th>
+                            <th>Last Heartbeat</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="agents-table-body">
+                        <tr>
+                            <td colspan="6" class="text-center">Loading agents...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="text/javascript">
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up event listeners
+        document.getElementById('btn-refresh').addEventListener('click', loadAgents);
+        
+        // Load initial data
+        loadAgents();
+        
+        // Set interval to refresh data every 30 seconds
+        setInterval(loadAgents, 30000);
+    });
+    
+    // Load agents from API
+    function loadAgents() {
+        fetch('/api/agents/')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                renderAgents(data);
+            })
+            .catch(error => {
+                console.error('Error loading agents:', error);
+                const tableBody = document.getElementById('agents-table-body');
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Error loading agents. Please try again.</td></tr>';
+            });
+    }
+    
+    // Render agents table
+    function renderAgents(agents) {
+        const tableBody = document.getElementById('agents-table-body');
+        tableBody.innerHTML = '';
+        
+        if (agents.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="6" class="text-center">No agents found</td>';
+            tableBody.appendChild(emptyRow);
+            return;
+        }
+        
+        agents.forEach(agent => {
+            const row = document.createElement('tr');
+            
+            // Name
+            const nameCell = document.createElement('td');
+            const nameLink = document.createElement('a');
+            nameLink.href = `/dashboard/agents/${agent.id}/`;
+            nameLink.textContent = agent.name;
+            nameCell.appendChild(nameLink);
+            row.appendChild(nameCell);
+            
+            // Status
+            const statusCell = document.createElement('td');
+            let statusBadge = '';
+            if (agent.status === 'active') {
+                statusBadge = '<span class="badge bg-success">Active</span>';
+            } else if (agent.status === 'inactive') {
+                statusBadge = '<span class="badge bg-warning text-dark">Inactive</span>';
+            } else {
+                statusBadge = '<span class="badge bg-danger">Error</span>';
+            }
+            statusCell.innerHTML = statusBadge;
+            row.appendChild(statusCell);
+            
+            // IP Address
+            const ipCell = document.createElement('td');
+            ipCell.textContent = agent.ip_address || 'N/A';
+            row.appendChild(ipCell);
+            
+            // Version
+            const versionCell = document.createElement('td');
+            versionCell.textContent = agent.version || 'N/A';
+            row.appendChild(versionCell);
+            
+            // Last Heartbeat
+            const heartbeatCell = document.createElement('td');
+            if (agent.last_heartbeat) {
+                const heartbeatDate = new Date(agent.last_heartbeat);
+                heartbeatCell.textContent = heartbeatDate.toLocaleString();
+            } else {
+                heartbeatCell.textContent = 'Never';
+            }
+            row.appendChild(heartbeatCell);
+            
+            // Actions
+            const actionsCell = document.createElement('td');
+            
+            // Detail Button
+            const detailBtn = document.createElement('a');
+            detailBtn.href = `/dashboard/agents/${agent.id}/`;
+            detailBtn.className = 'btn btn-sm btn-primary me-1';
+            detailBtn.innerHTML = '<i class="fas fa-eye"></i> Details';
+            detailBtn.title = 'View Agent Details';
+            detailBtn.onclick = function(e) {
+                e.preventDefault();
+                showAgentDetails(agent.id);
+                return false;
+            };
+            actionsCell.appendChild(detailBtn);
+            
+            row.appendChild(actionsCell);
+            
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // Function to fetch and display agent details
+    function showAgentDetails(agentId) {
+        // Navigate to the agent detail page
+        window.location.href = `/dashboard/agents/${agentId}/`;
+    }
+</script>
+{% endblock %} 

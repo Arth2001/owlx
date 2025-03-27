@@ -1,0 +1,577 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Agent: {{ agent.name }} - OwlX Agent Monitoring Platform{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'dashboard:dashboard' %}">Home</a></li>
+<li class="breadcrumb-item"><a href="{% url 'dashboard:agent_list' %}">Agents</a></li>
+<li class="breadcrumb-item active" aria-current="page">{{ agent.name }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% else %}
+    <!-- Agent Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Agent: {{ agent.name }}</h1>
+        <div>
+            <button id="btn-refresh-metrics" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-sync-alt"></i> Refresh Metrics
+            </button>
+            <a href="{% url 'dashboard:agent_list' %}" class="btn btn-outline-primary me-2">
+                <i class="fas fa-arrow-left"></i> Back to Agents
+            </a>
+        </div>
+    </div>
+    
+    <!-- Agent Info -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    Agent Information
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Status:</span>
+                            {% if agent.status == 'active' %}
+                                <span class="badge bg-success">Active</span>
+                            {% elif agent.status == 'inactive' %}
+                                <span class="badge bg-warning text-dark">Inactive</span>
+                            {% else %}
+                                <span class="badge bg-danger">Error</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Online:</span>
+                            {% if is_online %}
+                                <span class="badge bg-success">Yes</span>
+                            {% else %}
+                                <span class="badge bg-danger">No</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>IP Address:</span>
+                            <span>{{ agent.ip_address|default:"Not reported" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Last Heartbeat:</span>
+                            <span>{{ agent.last_heartbeat|date:"M d, Y H:i:s"|default:"Never" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Version:</span>
+                            <span>{{ agent.version }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Created:</span>
+                            <span>{{ agent.created_at|date:"M d, Y H:i" }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Agent Configuration -->
+            <div class="card mt-4">
+                <div class="card-header bg-secondary text-white">
+                    Configuration
+                </div>
+                <div class="card-body">
+                    <pre class="mb-0"><code>{{ agent.config|pprint }}</code></pre>
+                </div>
+            </div>
+            
+            <!-- Recent Metrics -->
+            <div class="card mt-4">
+                <div class="card-header bg-secondary text-white">
+                    Latest Metric Values
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="latest-metrics-table">
+                            <tr>
+                                <td colspan="3" class="text-center">Loading latest metrics...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <!-- Metrics Chart Controls -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Metrics Visualization</span>
+                        <div>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-light time-range-btn active" data-hours="1">1h</button>
+                                <button type="button" class="btn btn-outline-light time-range-btn" data-hours="3">3h</button>
+                                <button type="button" class="btn btn-outline-light time-range-btn" data-hours="6">6h</button>
+                                <button type="button" class="btn btn-outline-light time-range-btn" data-hours="12">12h</button>
+                                <button type="button" class="btn btn-outline-light time-range-btn" data-hours="24">24h</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Metric type toggles -->
+                    <div class="mb-3 d-flex flex-wrap gap-2" id="metric-toggles">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input metric-toggle" type="checkbox" id="toggle-cpu" checked data-metric="cpu_usage" data-color="rgba(255, 99, 132, 1)">
+                            <label class="form-check-label" for="toggle-cpu">CPU Usage</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input metric-toggle" type="checkbox" id="toggle-memory" checked data-metric="memory_usage" data-color="rgba(54, 162, 235, 1)">
+                            <label class="form-check-label" for="toggle-memory">Memory Usage</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input metric-toggle" type="checkbox" id="toggle-disk" checked data-metric="disk_usage" data-color="rgba(255, 206, 86, 1)">
+                            <label class="form-check-label" for="toggle-disk">Disk Usage</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input metric-toggle" type="checkbox" id="toggle-netIn" checked data-metric="network_in" data-color="rgba(75, 192, 192, 1)">
+                            <label class="form-check-label" for="toggle-netIn">Network In</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input metric-toggle" type="checkbox" id="toggle-netOut" checked data-metric="network_out" data-color="rgba(153, 102, 255, 1)">
+                            <label class="form-check-label" for="toggle-netOut">Network Out</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart canvas -->
+                    <canvas id="metricsChart" height="250"></canvas>
+                    
+                    <!-- No data message -->
+                    <div id="no-data-message" class="text-center p-5" style="display: none;">
+                        <h5 class="text-muted">No metrics data available for the selected time range</h5>
+                        <p>Try selecting a different time range or check that the agent is reporting metrics.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Agent Alerts -->
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Recent Alerts</span>
+                        <a href="{% url 'dashboard:alerts' %}?agent_id={{ agent.id }}" class="btn btn-sm btn-outline-light">
+                            View All Alerts
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Rule</th>
+                                    <th>Severity</th>
+                                    <th>Value</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alerts-table">
+                                {% for alert in alerts %}
+                                <tr>
+                                    <td>{{ alert.rule.name }}</td>
+                                    <td>
+                                        {% if alert.rule.severity == 'critical' %}
+                                            <span class="badge bg-danger">Critical</span>
+                                        {% elif alert.rule.severity == 'high' %}
+                                            <span class="badge bg-warning text-dark">High</span>
+                                        {% elif alert.rule.severity == 'medium' %}
+                                            <span class="badge bg-info text-dark">Medium</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Low</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ alert.value }}</td>
+                                    <td>
+                                        {% if alert.status == 'new' %}
+                                            <span class="badge bg-danger">New</span>
+                                        {% elif alert.status == 'acknowledged' %}
+                                            <span class="badge bg-warning text-dark">Acknowledged</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Resolved</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ alert.created_at|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No alerts found</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if not error %}
+<script type="text/javascript">
+    // Agent ID for API calls
+    const agentId = "{{ agent.id }}";
+    // Chart instance
+    let metricsChart = null;
+    // Current time range in hours
+    let currentTimeRange = 1;
+    // Latest metrics data
+    let latestMetricsData = null;
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up event listeners
+        document.getElementById('btn-refresh-metrics').addEventListener('click', function() {
+            loadAgentDetails();
+            loadMetricsData();
+        });
+        
+        // Time range button listeners
+        document.querySelectorAll('.time-range-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Update active state
+                document.querySelectorAll('.time-range-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Update time range and reload data
+                currentTimeRange = parseInt(this.getAttribute('data-hours'), 10);
+                loadMetricsData();
+            });
+        });
+        
+        // Metric toggle listeners
+        document.querySelectorAll('.metric-toggle').forEach(toggle => {
+            toggle.addEventListener('change', updateChart);
+        });
+        
+        // Initial data loads
+        loadAgentDetails();
+        loadMetricsData();
+        
+        // Set up auto-refresh every 30 seconds
+        setInterval(function() {
+            loadAgentDetails();
+            loadMetricsData();
+        }, 30000);
+    });
+    
+    // Load agent details from API
+    function loadAgentDetails() {
+        fetch(`/api/agents/${agentId}/details/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Agent details received:', data);
+                updateAgentInfo(data);
+            })
+            .catch(error => {
+                console.error('Error loading agent details:', error);
+            });
+    }
+    
+    // Update the agent information on the page
+    function updateAgentInfo(agent) {
+        // Update status badges
+        const statusElements = document.querySelectorAll('.list-group-item');
+        statusElements.forEach(element => {
+            const labelSpan = element.querySelector('span:first-child');
+            if (labelSpan && labelSpan.textContent === 'Status:') {
+                const badgeSpan = element.querySelector('span:last-child');
+                if (badgeSpan) {
+                    let badgeHtml = '';
+                    if (agent.status === 'active') {
+                        badgeHtml = '<span class="badge bg-success">Active</span>';
+                    } else if (agent.status === 'inactive') {
+                        badgeHtml = '<span class="badge bg-warning text-dark">Inactive</span>';
+                    } else {
+                        badgeHtml = '<span class="badge bg-danger">Error</span>';
+                    }
+                    badgeSpan.outerHTML = badgeHtml;
+                }
+            } else if (labelSpan && labelSpan.textContent === 'Online:') {
+                const badgeSpan = element.querySelector('span:last-child');
+                if (badgeSpan) {
+                    badgeSpan.outerHTML = agent.is_online ? 
+                        '<span class="badge bg-success">Yes</span>' : 
+                        '<span class="badge bg-danger">No</span>';
+                }
+            } else if (labelSpan && labelSpan.textContent === 'Last Heartbeat:') {
+                const valueSpan = element.querySelector('span:last-child');
+                if (valueSpan && agent.last_heartbeat) {
+                    const date = new Date(agent.last_heartbeat);
+                    valueSpan.textContent = date.toLocaleString();
+                }
+            }
+        });
+    }
+    
+    // Load metrics data from API
+    function loadMetricsData() {
+        // Show loading indicators
+        document.getElementById('latest-metrics-table').innerHTML = '<tr><td colspan="3" class="text-center">Loading latest metrics...</td></tr>';
+        document.getElementById('no-data-message').style.display = 'none';
+        
+        // The correct API endpoint based on your URL configuration
+        fetch(`/api/metrics/?agent_id=${agentId}&hours=${currentTimeRange}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Metrics data received:', data);
+                processMetricsData(data);
+                updateChart();
+                updateLatestMetricsTable();
+            })
+            .catch(error => {
+                console.error('Error loading metrics data:', error);
+                document.getElementById('no-data-message').style.display = 'block';
+                document.getElementById('latest-metrics-table').innerHTML = 
+                    '<tr><td colspan="3" class="text-center">Error loading metrics data. Please try again.</td></tr>';
+                if (metricsChart) {
+                    metricsChart.destroy();
+                    metricsChart = null;
+                }
+            });
+    }
+    
+    // Process the metrics data from API into the format needed for the chart
+    function processMetricsData(data) {
+        if (!data || data.length === 0) {
+            latestMetricsData = null;
+            return;
+        }
+        
+        // Initialize structure
+        latestMetricsData = {
+            metrics: {},
+            timestamps: []
+        };
+        
+        // Group metrics by name
+        const metricsByName = {};
+        const timestamps = new Set();
+        
+        data.forEach(metric => {
+            const name = metric.metric_name;
+            const timestamp = new Date(metric.timestamp).toISOString();
+            
+            timestamps.add(timestamp);
+            
+            if (!metricsByName[name]) {
+                metricsByName[name] = {
+                    values: [],
+                    timestamps: []
+                };
+            }
+            
+            metricsByName[name].values.push(metric.metric_value);
+            metricsByName[name].timestamps.push(timestamp);
+        });
+        
+        // Sort timestamps
+        latestMetricsData.timestamps = Array.from(timestamps).sort();
+        latestMetricsData.metrics = metricsByName;
+    }
+    
+    // Update the metrics chart based on current data and toggle states
+    function updateChart() {
+        if (!latestMetricsData || !latestMetricsData.metrics) {
+            document.getElementById('no-data-message').style.display = 'block';
+            return;
+        }
+        
+        // Get all active metric toggles
+        const activeMetrics = Array.from(document.querySelectorAll('.metric-toggle:checked'))
+            .map(toggle => ({
+                name: toggle.getAttribute('data-metric'),
+                color: toggle.getAttribute('data-color')
+            }));
+        
+        // If no metrics are selected, show message and return
+        if (activeMetrics.length === 0) {
+            document.getElementById('no-data-message').style.display = 'block';
+            if (metricsChart) {
+                metricsChart.destroy();
+                metricsChart = null;
+            }
+            return;
+        }
+        
+        // Hide no data message
+        document.getElementById('no-data-message').style.display = 'none';
+        
+        // Prepare datasets
+        const datasets = [];
+        let hasData = false;
+        
+        activeMetrics.forEach(metric => {
+            if (latestMetricsData.metrics[metric.name]) {
+                const metricData = latestMetricsData.metrics[metric.name];
+                if (metricData.values.length > 0) {
+                    hasData = true;
+                    datasets.push({
+                        label: formatMetricName(metric.name),
+                        data: metricData.values,
+                        borderColor: metric.color,
+                        backgroundColor: 'rgba(0, 0, 0, 0)',
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        tension: 0.2,
+                        fill: false
+                    });
+                }
+            }
+        });
+        
+        if (!hasData) {
+            document.getElementById('no-data-message').style.display = 'block';
+            if (metricsChart) {
+                metricsChart.destroy();
+                metricsChart = null;
+            }
+            return;
+        }
+        
+        // Get the canvas context
+        const ctx = document.getElementById('metricsChart').getContext('2d');
+        
+        // Destroy existing chart if any
+        if (metricsChart) {
+            metricsChart.destroy();
+        }
+        
+        // Create new chart
+        metricsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: latestMetricsData.timestamps,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: {
+                            display: true,
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: 10
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            display: true,
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            boxWidth: 6
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Update the latest metrics table
+    function updateLatestMetricsTable() {
+        if (!latestMetricsData || !latestMetricsData.metrics) {
+            return;
+        }
+        
+        const tableBody = document.getElementById('latest-metrics-table');
+        tableBody.innerHTML = '';
+        
+        // Get all metric names
+        const metricNames = Object.keys(latestMetricsData.metrics);
+        
+        if (metricNames.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="3" class="text-center">No metrics available</td>';
+            tableBody.appendChild(row);
+            return;
+        }
+        
+        // Add a row for each metric's latest value
+        metricNames.forEach(metricName => {
+            const metricData = latestMetricsData.metrics[metricName];
+            if (metricData.values.length > 0) {
+                // Get the latest value and timestamp
+                const latestValue = metricData.values[metricData.values.length - 1];
+                const latestTimestamp = metricData.timestamps[metricData.timestamps.length - 1];
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${formatMetricName(metricName)}</td>
+                    <td>${formatMetricValue(metricName, latestValue)}</td>
+                    <td>${formatTimestamp(latestTimestamp)}</td>
+                `;
+                tableBody.appendChild(row);
+            }
+        });
+    }
+    
+    // Format metric name for display
+    function formatMetricName(name) {
+        return name
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    // Format metric value with appropriate units
+    function formatMetricValue(name, value) {
+        if (name.includes('usage')) {
+            return `${value.toFixed(2)}%`;
+        } else if (name.includes('network')) {
+            return `${(value / 1024).toFixed(2)} KB/s`;
+        }
+        return value.toFixed(2);
+    }
+    
+    // Format timestamp for display
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+        return `${date.toLocaleTimeString()}`;
+    }
+</script>
+{% endif %}
+{% endblock %} 

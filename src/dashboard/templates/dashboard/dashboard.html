@@ -1,0 +1,361 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Dashboard - OwlX Agent Monitoring Platform{% endblock %}
+
+{% load static %}
+{% block css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Dashboard</h1>
+    
+    <!-- Top Action Buttons -->
+    <div class="d-flex justify-content-end mb-3">
+        <button id="btn-create-dashboard-alert" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create Alert
+        </button>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Agents</h5>
+                    <h2 class="card-text" id="total-agents">-</h2>
+                    <p class="card-text"><span id="online-agents">-</span> online</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Active Agents</h5>
+                    <h2 class="card-text" id="active-agents">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5 class="card-title">Inactive Agents</h5>
+                    <h2 class="card-text" id="inactive-agents">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Error Agents</h5>
+                    <h2 class="card-text" id="error-agents">-</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Alerts Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    Alert Summary
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <a href="{% url 'dashboard:alerts' %}?status=new" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            New Alerts
+                            <span class="badge bg-danger rounded-pill" id="new-alerts">-</span>
+                        </a>
+                        <a href="{% url 'dashboard:alerts' %}?status=acknowledged" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            Acknowledged Alerts
+                            <span class="badge bg-warning rounded-pill" id="acknowledged-alerts">-</span>
+                        </a>
+                        <a href="{% url 'dashboard:alerts' %}?status=resolved" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            Resolved Alerts
+                            <span class="badge bg-success rounded-pill" id="resolved-alerts">-</span>
+                        </a>
+                        <a href="{% url 'dashboard:alerts' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            Total Alerts
+                            <span class="badge bg-primary rounded-pill" id="total-alerts">-</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    Latest Alerts
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Agent</th>
+                                    <th>Rule</th>
+                                    <th>Severity</th>
+                                    <th>Value</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="latest-alerts">
+                                <tr>
+                                    <td colspan="7" class="text-center">Loading alerts...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Section -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    Agent Status Distribution
+                </div>
+                <div class="card-body">
+                    <canvas id="agentStatusChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    Alert Status Distribution
+                </div>
+                <div class="card-body">
+                    <canvas id="alertStatusChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="text/javascript">
+    // Variables to store chart objects
+    let agentStatusChart = null;
+    let alertStatusChart = null;
+    
+    // Function to update the dashboard data
+    function updateDashboard() {
+        fetch('/dashboard/api/dashboard/')
+            .then(response => response.json())
+            .then(data => {
+                // Update agent statistics
+                document.getElementById('total-agents').textContent = data.agents.total;
+                document.getElementById('online-agents').textContent = data.agents.online;
+                document.getElementById('active-agents').textContent = data.agents.active;
+                document.getElementById('inactive-agents').textContent = data.agents.inactive;
+                document.getElementById('error-agents').textContent = data.agents.error;
+                
+                // Update alert statistics
+                document.getElementById('total-alerts').textContent = data.alerts.total;
+                document.getElementById('new-alerts').textContent = data.alerts.new;
+                document.getElementById('acknowledged-alerts').textContent = data.alerts.acknowledged;
+                document.getElementById('resolved-alerts').textContent = data.alerts.resolved;
+                
+                // Update latest alerts table with edit functionality
+                updateLatestAlertsTable(data);
+                
+                // Update charts
+                updateCharts(data);
+            })
+            .catch(error => {
+                console.error('Error fetching dashboard data:', error);
+            });
+    }
+    
+    // Function to update the charts
+    function updateCharts(data) {
+        // Agent Status Chart
+        const agentStatusCtx = document.getElementById('agentStatusChart').getContext('2d');
+        
+        // If chart exists, destroy it before recreating
+        if (agentStatusChart) {
+            agentStatusChart.destroy();
+        }
+        
+        agentStatusChart = new Chart(agentStatusCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Active', 'Inactive', 'Error'],
+                datasets: [{
+                    data: [
+                        data.agents.active,
+                        data.agents.inactive,
+                        data.agents.error
+                    ],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.7)',  // Green
+                        'rgba(255, 193, 7, 0.7)',  // Yellow
+                        'rgba(220, 53, 69, 0.7)'   // Red
+                    ],
+                    borderColor: [
+                        'rgba(40, 167, 69, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(220, 53, 69, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+        
+        // Alert Status Chart
+        const alertStatusCtx = document.getElementById('alertStatusChart').getContext('2d');
+        
+        // If chart exists, destroy it before recreating
+        if (alertStatusChart) {
+            alertStatusChart.destroy();
+        }
+        
+        alertStatusChart = new Chart(alertStatusCtx, {
+            type: 'pie',
+            data: {
+                labels: ['New', 'Acknowledged', 'Resolved'],
+                datasets: [{
+                    data: [
+                        data.alerts.new,
+                        data.alerts.acknowledged,
+                        data.alerts.resolved
+                    ],
+                    backgroundColor: [
+                        'rgba(220, 53, 69, 0.7)',   // Red
+                        'rgba(255, 193, 7, 0.7)',   // Yellow
+                        'rgba(40, 167, 69, 0.7)'    // Green
+                    ],
+                    borderColor: [
+                        'rgba(220, 53, 69, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(40, 167, 69, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+    
+    // Initial update
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up event listeners
+        document.getElementById('btn-create-dashboard-alert').addEventListener('click', openCreateAlertModal);
+        
+        // Initial load
+        updateDashboard();
+        
+        // Set interval to refresh data every 30 seconds
+        setInterval(updateDashboard, 30000);
+    });
+    
+    // Function to update the latest alerts table with edit functionality
+    function updateLatestAlertsTable(data) {
+        const latestAlertsTable = document.getElementById('latest-alerts');
+        latestAlertsTable.innerHTML = '';
+        
+        if (data.alerts.latest.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="7" class="text-center">No alerts found</td>';
+            latestAlertsTable.appendChild(emptyRow);
+        } else {
+            data.alerts.latest.forEach(alert => {
+                const row = document.createElement('tr');
+                
+                // Agent
+                const agentCell = document.createElement('td');
+                agentCell.textContent = alert.agent;
+                row.appendChild(agentCell);
+                
+                // Rule
+                const ruleCell = document.createElement('td');
+                ruleCell.textContent = alert.rule;
+                row.appendChild(ruleCell);
+                
+                // Severity
+                const severityCell = document.createElement('td');
+                let severityBadge = '';
+                if (alert.severity === 'critical') {
+                    severityBadge = '<span class="badge bg-danger">Critical</span>';
+                } else if (alert.severity === 'high') {
+                    severityBadge = '<span class="badge bg-warning text-dark">High</span>';
+                } else if (alert.severity === 'medium') {
+                    severityBadge = '<span class="badge bg-info text-dark">Medium</span>';
+                } else {
+                    severityBadge = '<span class="badge bg-secondary">Low</span>';
+                }
+                severityCell.innerHTML = severityBadge;
+                row.appendChild(severityCell);
+                
+                // Value
+                const valueCell = document.createElement('td');
+                valueCell.textContent = alert.value;
+                row.appendChild(valueCell);
+                
+                // Status
+                const statusCell = document.createElement('td');
+                let statusBadge = '';
+                if (alert.status === 'new') {
+                    statusBadge = '<span class="badge bg-danger">New</span>';
+                } else if (alert.status === 'acknowledged') {
+                    statusBadge = '<span class="badge bg-warning text-dark">Acknowledged</span>';
+                } else {
+                    statusBadge = '<span class="badge bg-success">Resolved</span>';
+                }
+                statusCell.innerHTML = statusBadge;
+                row.appendChild(statusCell);
+                
+                // Created At
+                const createdAtCell = document.createElement('td');
+                createdAtCell.textContent = alert.created_at;
+                row.appendChild(createdAtCell);
+                
+                // Actions
+                const actionsCell = document.createElement('td');
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-info';
+                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                editBtn.title = 'Edit Alert';
+                editBtn.dataset.alertId = alert.id;
+                editBtn.addEventListener('click', function() {
+                    window.location.href = `/dashboard/alerts/?edit=${alert.id}`;
+                });
+                actionsCell.appendChild(editBtn);
+                row.appendChild(actionsCell);
+                
+                latestAlertsTable.appendChild(row);
+            });
+        }
+    }
+    
+    // Open create alert modal function
+    function openCreateAlertModal() {
+        window.location.href = '/dashboard/alerts/?create=true';
+    }
+</script>
+{% endblock %} 
